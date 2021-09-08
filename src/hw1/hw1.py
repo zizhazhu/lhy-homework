@@ -109,7 +109,7 @@ class NeuralNet(nn.Module):
 
 
 def train(tr_set, dv_set, model, config, device):
-    ''' DNN training '''
+    """ DNN training """
 
     n_epochs = config['n_epochs']  # Maximum number of epochs
 
@@ -204,6 +204,7 @@ def main():
     valid_dataset = prep_dataloader(train_data_path, 'dev', config['batch_size'], target_only=target_only)
     test_dataset = prep_dataloader(test_data_path, 'test', config['batch_size'], target_only=target_only)
 
+    model = NeuralNet(train_dataset.dataset.dim).to(device)
     model_loss, model_loss_record = train(train_dataset, valid_dataset, model, config, device)
 
     plot_learning_curve(model_loss_record, title='deep model')
