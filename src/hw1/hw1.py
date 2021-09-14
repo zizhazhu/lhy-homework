@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 
-from util.util import set_rand_seed, get_device
+from util.util import set_rand_seed, get_device, plot_learning_curve, plot_pred
 
 
 class COVID19Dataset(Dataset):
