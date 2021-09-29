@@ -223,7 +223,7 @@ def main():
                 writer.writerow([i, p])
 
     preds = test(test_dataset, model, device)  # predict COVID-19 cases with your model
-    save_pred(preds, 'pred.csv')         # save prediction file to pred.csv
+    save_pred(preds, 'result/pred.csv')         # save prediction file to pred.csv
 
 
 if __name__ == '__main__':
