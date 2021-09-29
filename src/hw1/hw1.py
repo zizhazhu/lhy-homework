@@ -84,16 +84,19 @@ def prep_dataloader(path, mode, batch_size, n_jobs=0, target_only=False):
 
 class NeuralNet(nn.Module):
     ''' A simple fully-connected deep neural network '''
-    def __init__(self, input_dim):
+    def __init__(self, input_dim, layers=(128, 64, 32), activation=nn.ReLU):
         super(NeuralNet, self).__init__()
 
         # Define your neural network here
-        # TODO: How to modify this model to achieve better performance?
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, 64),
-            nn.ReLU(),
-            nn.Linear(64, 1)
-        )
+        seqs = []
+        last_layer = input_dim
+        for layer in layers:
+            seqs.append(nn.Linear(last_layer, layer))
+            last_layer = layer
+            if activation is not None:
+                seqs.append(activation())
+        seqs.append(nn.Linear(last_layer, 1))
+        self.net = nn.Sequential(*seqs)
 
         # Mean squared error loss
         self.criterion = nn.MSELoss(reduction='mean')
