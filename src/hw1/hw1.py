@@ -107,7 +107,6 @@ class NeuralNet(nn.Module):
 
     def cal_loss(self, pred, target):
         ''' Calculate loss '''
-        # TODO: you may implement L1/L2 regularization here
         return self.criterion(pred, target)
 
 
@@ -195,10 +194,10 @@ def main():
     config = {
         'n_epochs': 3000,                # maximum number of epochs
         'batch_size': 270,               # mini-batch size for dataloader
-        'optimizer': 'SGD',              # optimization algorithm (optimizer in torch.optim)
+        'optimizer': 'Adam',              # optimization algorithm (optimizer in torch.optim)
         'optim_hparas': {                # hyper-parameters for the optimizer (depends on which optimizer you are using)
             'lr': 0.001,
-            'momentum': 0.9,
+          # 'momentum': 0.9,
             'weight_decay': 0.01,
         },
         'early_stop': 200,               # early stopping epochs (the number epochs since your model's last improvement)
