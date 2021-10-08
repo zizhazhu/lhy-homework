@@ -198,7 +198,7 @@ def main():
         'optim_hparas': {                # hyper-parameters for the optimizer (depends on which optimizer you are using)
             'lr': 0.001,
           # 'momentum': 0.9,
-            'weight_decay': 0.01,
+            'weight_decay': 0.1,
         },
         'early_stop': 200,               # early stopping epochs (the number epochs since your model's last improvement)
         'save_path': 'models/model.pth'  # your model will be saved here
