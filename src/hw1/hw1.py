@@ -2,6 +2,7 @@ import os
 import csv
 
 import numpy as np
+from sklearn.feature_selection import SelectKBest, f_regression
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
@@ -11,7 +12,7 @@ from util.util import set_rand_seed, get_device, plot_learning_curve, plot_pred
 
 class COVID19Dataset(Dataset):
     """ Dataset for loading and preprocessing the COVID19 dataset """
-    def __init__(self, path, mode='train', target_only=False):
+    def __init__(self, path, mode='train', selection=None):
         self.mode = mode
 
         # Read data into numpy arrays
@@ -20,11 +21,14 @@ class COVID19Dataset(Dataset):
             # remove header and id
             data = np.array(data[1:])[:, 1:].astype(float)
 
-        if not target_only:
+        if selection is None:
             feats = list(range(93))
         else:
             # TODO: Using 40 states & 2 tested_positive features (indices = 57 & 75)
-            pass
+            feats = []
+            for i in range(len(selection)):
+                if selection[i]:
+                    feats.append(i)
 
         if mode == 'test':
             # Testing data
@@ -49,9 +53,14 @@ class COVID19Dataset(Dataset):
             self.target = torch.FloatTensor(target[indices])
 
         # Normalize features (you may remove this part to see what will happen)
-        self.data[:, 40:] = \
-            (self.data[:, 40:] - self.data[:, 40:].mean(dim=0, keepdim=True)) \
-            / self.data[:, 40:].std(dim=0, keepdim=True)
+        if selection is None:
+            self.data[:, 40:] = \
+                (self.data[:, 40:] - self.data[:, 40:].mean(dim=0, keepdim=True)) \
+                / self.data[:, 40:].std(dim=0, keepdim=True)
+        else:
+            self.data[:, :] = \
+                (self.data[:, :] - self.data[:, :].mean(dim=0, keepdim=True)) \
+                / self.data[:, :].std(dim=0, keepdim=True)
 
         self.dim = self.data.shape[1]
 
@@ -72,9 +81,9 @@ class COVID19Dataset(Dataset):
         return len(self.data)
 
 
-def prep_dataloader(path, mode, batch_size, n_jobs=0, target_only=False):
+def prep_dataloader(path, mode, batch_size, n_jobs=0, selection=None):
     """ Generates a dataset, then is put into a dataloader. """
-    dataset = COVID19Dataset(path, mode=mode, target_only=target_only)  # Construct dataset
+    dataset = COVID19Dataset(path, mode=mode, selection=selection)  # Construct dataset
     dataloader = DataLoader(
         dataset, batch_size,
         shuffle=(mode == 'train'), drop_last=False,
@@ -170,6 +179,13 @@ def dev(dv_set, model, device):
     return total_loss
 
 
+def feature_selection(dataset):
+    x = dataset.data
+    y = dataset.target
+    select = SelectKBest(f_regression, k=20).fit(x, y).get_support()
+    return select
+
+
 def test(tt_set, model, device):
     model.eval()                                # set model to evalutation mode
     preds = []
@@ -188,9 +204,10 @@ def main():
     set_rand_seed()
     device = get_device()                 # get the current available device ('cpu' or 'cuda')
     os.makedirs('models', exist_ok=True)  # The trained model will be saved to ./models/
-    target_only = False                   # TODO: Using 40 states & 2 tested_positive features
 
-    # TODO: How to tune these hyper-parameters to improve your model's performance?
+    dataset = COVID19Dataset(train_data_path, 'train')
+    select = feature_selection(dataset)
+
     config = {
         'n_epochs': 3000,                # maximum number of epochs
         'batch_size': 270,               # mini-batch size for dataloader
@@ -203,9 +220,9 @@ def main():
         'early_stop': 200,               # early stopping epochs (the number epochs since your model's last improvement)
         'save_path': 'models/model.pth'  # your model will be saved here
     }
-    train_dataset = prep_dataloader(train_data_path, 'train', config['batch_size'], target_only=target_only)
-    valid_dataset = prep_dataloader(train_data_path, 'dev', config['batch_size'], target_only=target_only)
-    test_dataset = prep_dataloader(test_data_path, 'test', config['batch_size'], target_only=target_only)
+    train_dataset = prep_dataloader(train_data_path, 'train', config['batch_size'], selection=select)
+    valid_dataset = prep_dataloader(train_data_path, 'dev', config['batch_size'], selection=select)
+    test_dataset = prep_dataloader(test_data_path, 'test', config['batch_size'], selection=select)
 
     model = NeuralNet(train_dataset.dataset.dim).to(device)
     model_loss, model_loss_record = train(train_dataset, valid_dataset, model, config, device)
