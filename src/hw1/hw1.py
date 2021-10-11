@@ -210,8 +210,9 @@ def main():
 
     config = {
         'n_epochs': 3000,                # maximum number of epochs
-        'batch_size': 270,               # mini-batch size for dataloader
+        'batch_size': 64,               # mini-batch size for dataloader
         'optimizer': 'Adam',              # optimization algorithm (optimizer in torch.optim)
+        'layers': (64,),
         'optim_hparas': {                # hyper-parameters for the optimizer (depends on which optimizer you are using)
             'lr': 0.001,
           # 'momentum': 0.9,
@@ -224,12 +225,12 @@ def main():
     valid_dataset = prep_dataloader(train_data_path, 'dev', config['batch_size'], selection=select)
     test_dataset = prep_dataloader(test_data_path, 'test', config['batch_size'], selection=select)
 
-    model = NeuralNet(train_dataset.dataset.dim).to(device)
+    model = NeuralNet(train_dataset.dataset.dim, layers=config['layers']).to(device)
     model_loss, model_loss_record = train(train_dataset, valid_dataset, model, config, device)
 
     plot_learning_curve(model_loss_record, title='deep model')
     del model
-    model = NeuralNet(train_dataset.dataset.dim).to(device)
+    model = NeuralNet(train_dataset.dataset.dim, layers=config['layers']).to(device)
     ckpt = torch.load(config['save_path'], map_location='cpu')  # Load your best model
     model.load_state_dict(ckpt)
     plot_pred(valid_dataset, model, device)  # Show prediction on the validation set
