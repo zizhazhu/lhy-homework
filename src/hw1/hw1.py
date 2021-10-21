@@ -152,8 +152,8 @@ def train(tr_set, dv_set, model, config, device):
         if dev_mse < min_mse:
             # Save model if your model improved
             min_mse = dev_mse
-            print('Saving model (epoch = {:4d}, loss = {:.4f})'
-                  .format(epoch + 1, min_mse))
+            print('Saving model (epoch = {:4d}, loss = {:.4f}, train_loss = {:.4f})'
+                  .format(epoch + 1, min_mse, loss_record['train'][-1]))
             torch.save(model.state_dict(), config['save_path'])  # Save model to specified path
             early_stop_cnt = 0
         else:
