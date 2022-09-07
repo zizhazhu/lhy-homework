@@ -61,12 +61,12 @@ def hyper_parameters():
         'train_ratio': 0.8,
         'seed': 0,
         'batch_size': 512,
-        'num_epochs': 5,
+        'num_epochs': 2,
         'learning_rate': 0.0001,
-        'model_path': './model.ckpt',
+        'model_path': './ckpt/hw2/model.ckpt',
         'data_root': './data/hw2/',
     }
-    parameters['layers'] = [parameters['concat_nframes'] * 1, 256, 41]
+    parameters['layers'] = [parameters['concat_nframes'] * 39, 256, 41]
 
     return parameters
 
@@ -74,6 +74,7 @@ def hyper_parameters():
 def load_feat(path):
     feat = torch.load(path)
     return feat
+
 
 def shift(x, n):
     if n < 0:
@@ -183,15 +184,20 @@ def train(train_loader, val_loader=None, params={}, device='cpu'):
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=params['learning_rate'])
 
+    best_acc = 0.0
     for epoch in range(params['num_epochs']):
         train_acc = 0.0
+        train_cnt = 0
         train_loss = 0.0
+        val_acc = 0.0
+        val_cnt = 0
+        val_loss = 0.0
 
         model.train()
         for i, batch in enumerate(tqdm(train_loader)):
             features, labels = batch
             features = features.to(device)
-            labels = features.to(device)
+            labels = labels.to(device)
 
             optimizer.zero_grad()
             outputs = model(features)
@@ -199,15 +205,44 @@ def train(train_loader, val_loader=None, params={}, device='cpu'):
             loss.backward()
             optimizer.step()
 
-            _, train_pred = torch.max(outputs, labels)
+            _, train_pred = torch.max(outputs, 1)
             train_acc += (train_pred.detach() == labels.detach()).sum().item()
+            train_cnt += len(labels)
             train_loss += loss.item()
+
+        if val_loader is not None:
+            model.eval()
+            with torch.no_grad():
+                for i, batch in enumerate(tqdm(val_loader)):
+                    features, labels = batch
+                    features = features.to(device)
+                    labels = labels.to(labels)
+
+                    outputs = model(features)
+                    loss = criterion(outputs, labels)
+
+                    _, val_pred = torch.max(outputs, 1)
+                    val_acc += (val_pred.detach() == labels.detach()).sum().item()
+                    val_cnt += len(labels)
+                    val_loss += loss.item()
+            print(f"[{epoch+1}/{params['num_epochs']} Train Acc: {train_acc/train_cnt}"
+                  f"Loss: {train_loss/len(train_loader)} | Val Acc: {val_acc/val_cnt}"
+                  f"Loss: {val_loss/len(val_loader)}")
+
+            if val_acc > best_acc:
+                best_acc = val_acc
+                best_cnt = val_cnt
+                torch.save(model.state_dict(), params['model_path'])
+                print(f'Saving model with acc {best_acc/best_cnt}')
+        else:
+            print(f"[{epoch+1}/{params['num_epochs']} Train Acc: {train_acc/train_cnt}"
+                  f"Loss: {train_loss/len(train_loader)}")
 
 
 def main():
     params = hyper_parameters()
-    train_loader = get_data(params)
-    train(train_loader, params=params)
+    train_loader, val_loader = get_data(params)
+    train(train_loader, val_loader, params=params)
 
 
 if __name__ == '__main__':
