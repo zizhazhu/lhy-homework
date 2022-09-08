@@ -1,6 +1,7 @@
 import os
 import random
 
+import numpy as np
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -179,6 +180,16 @@ def get_data(params):
     return train_loader, val_loader
 
 
+def get_test_data(params):
+    feat_dir = os.path.join(params['data_root'], './libriphone/feat')
+    phone_path = os.path.join(params['data_root'], './libriphone')
+    test_X = preprocess_data(split='test', feat_dir=feat_dir, phone_path=phone_path,
+                             concat_nframes=params['concat_nframes'])
+    test_set = LibriDataset(test_X, None)
+    test_loader = DataLoader(test_set, batch_size=params['batch_size'], shuffle=False)
+    return test_loader
+
+
 def train(train_loader, val_loader=None, params={}, device='cpu'):
     model = Classifier(params['layers'])
     criterion = nn.CrossEntropyLoss()
@@ -237,12 +248,35 @@ def train(train_loader, val_loader=None, params={}, device='cpu'):
         else:
             print(f"[{epoch+1}/{params['num_epochs']} Train Acc: {train_acc/train_cnt}"
                   f"Loss: {train_loss/len(train_loader)}")
+    if val_loader is None:
+        torch.save(model.state_dict(), params['model_path'])
+
+
+def pred(test_loader, params, device='cpu'):
+    model = Classifier(params['layers']).to(device)
+    model.load_state_dict(torch.load(params['model_path']))
+    model.eval()
+    predictions = []
+    with torch.no_grad():
+        for i, batch in enumerate(tqdm(test_loader)):
+            features = batch
+            features = features.to(device)
+            outputs = model(features)
+            _, test_pred = torch.max(outputs, 1)
+            predictions.append(test_pred.cpu().numpy())
+    prediction = np.concatenate(predictions)
+    with open('./data/hw2/prediction.csv', 'w') as f:
+        f.write('Id,Class\n')
+        for i, y in enumerate(prediction):
+            f.write(f'{i},{y}\n')
 
 
 def main():
     params = hyper_parameters()
     train_loader, val_loader = get_data(params)
     train(train_loader, val_loader, params=params)
+    test_loader = get_test_data(params)
+    pred(test_loader, params)
 
 
 if __name__ == '__main__':
