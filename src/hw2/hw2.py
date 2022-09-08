@@ -1,5 +1,6 @@
 import os
 import random
+import argparse
 
 import numpy as np
 from tqdm import tqdm
@@ -7,6 +8,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
+
+
+def get_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('mode', type=str)
+    return parser
 
 
 class LibriDataset(Dataset):
@@ -58,11 +65,11 @@ class Classifier(nn.Module):
 
 def hyper_parameters():
     parameters = {
-        'concat_nframes': 1,
+        'concat_nframes': 3,
         'train_ratio': 0.8,
         'seed': 0,
         'batch_size': 512,
-        'num_epochs': 2,
+        'num_epochs': 5,
         'learning_rate': 0.0001,
         'model_path': './ckpt/hw2/model.ckpt',
         'data_root': './data/hw2/',
@@ -78,11 +85,13 @@ def load_feat(path):
 
 
 def shift(x, n):
+    # 滚动平移，第一个或者最后一个元素重复，其他的前移或后移
     if n < 0:
+        # 后移
         left = x[0].repeat(-n, 1)
         right = x[:n]
-
     elif n > 0:
+        # 前移
         right = x[-1].repeat(n, 1)
         left = x[n:]
     else:
@@ -265,18 +274,33 @@ def pred(test_loader, params, device='cpu'):
             _, test_pred = torch.max(outputs, 1)
             predictions.append(test_pred.cpu().numpy())
     prediction = np.concatenate(predictions)
-    with open('./data/hw2/prediction.csv', 'w') as f:
+    with open('./result/hw2/prediction.csv', 'w') as f:
         f.write('Id,Class\n')
         for i, y in enumerate(prediction):
             f.write(f'{i},{y}\n')
 
 
+def same_seeds(seed=0):
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+
+
 def main():
+    args = get_parser().parse_args()
     params = hyper_parameters()
-    train_loader, val_loader = get_data(params)
-    train(train_loader, val_loader, params=params)
-    test_loader = get_test_data(params)
-    pred(test_loader, params)
+    device = 'cuda:4' if torch.cuda.is_available() else 'cpu'
+    same_seeds(params['seed'])
+    if args.mode == 'train':
+        train_loader, val_loader = get_data(params)
+        train(train_loader, val_loader, params=params, device=device)
+    elif args.mode == 'pred':
+        test_loader = get_test_data(params)
+        pred(test_loader, params)
 
 
 if __name__ == '__main__':
