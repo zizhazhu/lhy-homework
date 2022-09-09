@@ -35,11 +35,12 @@ class LibriDataset(Dataset):
 
 
 class BasicBlock(nn.Module):
-    def __init__(self, input_dim, output_dim):
+    def __init__(self, input_dim, output_dim, dropout=0.5):
         super(BasicBlock, self).__init__()
         self.block = nn.Sequential(
             nn.Linear(input_dim, output_dim),
             nn.ReLU(),
+            nn.Dropout(p=dropout),
         )
 
     def forward(self, x):
@@ -65,16 +66,16 @@ class Classifier(nn.Module):
 
 def hyper_parameters():
     parameters = {
-        'concat_nframes': 3,
+        'concat_nframes': 7,
         'train_ratio': 0.8,
         'seed': 0,
         'batch_size': 512,
-        'num_epochs': 5,
+        'num_epochs': 10,
         'learning_rate': 0.0001,
         'model_path': './ckpt/hw2/model.ckpt',
         'data_root': './data/hw2/',
     }
-    parameters['layers'] = [parameters['concat_nframes'] * 39, 256, 41]
+    parameters['layers'] = [parameters['concat_nframes'] * 39, 256, 128, 64, 41]
 
     return parameters
 
