@@ -7,11 +7,13 @@ from tqdm import tqdm
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import Dataset, DataLoader
 
 
 def get_parser():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--trail_id', type=str, default='test')
     parser.add_argument('mode', type=str)
     return parser
 
@@ -49,11 +51,11 @@ class BasicBlock(nn.Module):
 
 
 class Classifier(nn.Module):
-    def __init__(self, layers):
+    def __init__(self, layers, dropout=0.5):
         super(Classifier, self).__init__()
         layer_seqs = []
         for i in range(len(layers) - 2):
-            layer_seqs.append(BasicBlock(layers[i], layers[i+1]))
+            layer_seqs.append(BasicBlock(layers[i], layers[i+1], dropout=dropout))
         layer_seqs.append(nn.Linear(layers[-2], layers[-1]))
         self.fc = nn.Sequential(
             *layer_seqs
@@ -66,16 +68,17 @@ class Classifier(nn.Module):
 
 def hyper_parameters():
     parameters = {
-        'concat_nframes': 7,
+        'concat_nframes': 21,
         'train_ratio': 0.8,
         'seed': 0,
         'batch_size': 512,
-        'num_epochs': 10,
+        'num_epochs': 1,
         'learning_rate': 0.0001,
-        'model_path': './ckpt/hw2/model.ckpt',
-        'data_root': './data/hw2/',
+        'dropout': 0.25,
+        'model_path': './ckpt/work2/model.ckpt',
+        'data_root': './data/work2/',
     }
-    parameters['layers'] = [parameters['concat_nframes'] * 39, 256, 128, 64, 41]
+    parameters['layers'] = [parameters['concat_nframes'] * 39, 512, 256, 128, 41]
 
     return parameters
 
@@ -200,12 +203,14 @@ def get_test_data(params):
     return test_loader
 
 
-def train(train_loader, val_loader=None, params={}, device='cpu'):
-    model = Classifier(params['layers'])
+def train(train_loader, val_loader=None, params={}, device='cpu', trail_id='./'):
+    model = Classifier(params['layers'], dropout=0.75).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=params['learning_rate'])
+    writer = SummaryWriter(os.path.join('/data/lifeinan/logs/hy/', trail_id))
 
     best_acc = 0.0
+    best_loss = 0.0
     for epoch in range(params['num_epochs']):
         train_acc = 0.0
         train_cnt = 0
@@ -237,7 +242,7 @@ def train(train_loader, val_loader=None, params={}, device='cpu'):
                 for i, batch in enumerate(tqdm(val_loader)):
                     features, labels = batch
                     features = features.to(device)
-                    labels = labels.to(labels)
+                    labels = labels.to(device)
 
                     outputs = model(features)
                     loss = criterion(outputs, labels)
@@ -249,17 +254,44 @@ def train(train_loader, val_loader=None, params={}, device='cpu'):
             print(f"[{epoch+1}/{params['num_epochs']} Train Acc: {train_acc/train_cnt}"
                   f"Loss: {train_loss/len(train_loader)} | Val Acc: {val_acc/val_cnt}"
                   f"Loss: {val_loss/len(val_loader)}")
+            writer.add_scalar('train/acc', train_acc / train_cnt, epoch+1)
+            writer.add_scalar('train/loss', train_loss / len(train_loader), epoch+1)
+            writer.add_scalar('val/acc', val_acc / val_cnt, epoch+1)
+            writer.add_scalar('val/loss', val_loss / len(val_loader), epoch+1)
 
             if val_acc > best_acc:
                 best_acc = val_acc
+                best_loss = val_loss
                 best_cnt = val_cnt
                 torch.save(model.state_dict(), params['model_path'])
                 print(f'Saving model with acc {best_acc/best_cnt}')
         else:
             print(f"[{epoch+1}/{params['num_epochs']} Train Acc: {train_acc/train_cnt}"
                   f"Loss: {train_loss/len(train_loader)}")
+            writer.add_scalar('train/acc', train_acc / train_cnt, epoch+1)
+            writer.add_scalar('train/loss', train_loss / len(train_loader), epoch+1)
+    hparams = {
+        'batch_size': params['batch_size'],
+        'dropout': params['dropout'],
+        'layers': ','.join(map(str, params['layers'])),
+        'learning_rate': params['learning_rate'],
+        'num_epochs': params['num_epochs'],
+        'concat_nframes': params['concat_nframes'],
+        'optimizer': 'adamw',
+    }
     if val_loader is None:
         torch.save(model.state_dict(), params['model_path'])
+        metrics = {
+            'acc': train_acc / train_cnt,
+            'loss': train_loss / len(train_loader),
+        }
+        writer.add_hparams(hparams, metrics)
+    else:
+        metrics = {
+            'acc': best_acc / best_cnt,
+            'loss': best_loss / best_cnt,
+        }
+        writer.add_hparams(hparams, metrics)
 
 
 def pred(test_loader, params, device='cpu'):
@@ -275,7 +307,7 @@ def pred(test_loader, params, device='cpu'):
             _, test_pred = torch.max(outputs, 1)
             predictions.append(test_pred.cpu().numpy())
     prediction = np.concatenate(predictions)
-    with open('./result/hw2/prediction.csv', 'w') as f:
+    with open('./result/work2/prediction.csv', 'w') as f:
         f.write('Id,Class\n')
         for i, y in enumerate(prediction):
             f.write(f'{i},{y}\n')
@@ -295,13 +327,14 @@ def main():
     args = get_parser().parse_args()
     params = hyper_parameters()
     device = 'cuda:4' if torch.cuda.is_available() else 'cpu'
+    print(f'Use device: {device}')
     same_seeds(params['seed'])
-    if args.mode == 'train':
+    if args.mode == 'train' or args.mode == 'both':
         train_loader, val_loader = get_data(params)
-        train(train_loader, val_loader, params=params, device=device)
-    elif args.mode == 'pred':
+        train(train_loader, val_loader, params=params, device=device, trail_id=args.trail_id)
+    elif args.mode == 'pred' or args.mode == 'both':
         test_loader = get_test_data(params)
-        pred(test_loader, params)
+        pred(test_loader, params, device=device)
 
 
 if __name__ == '__main__':
