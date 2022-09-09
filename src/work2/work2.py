@@ -73,7 +73,7 @@ class Classifier(nn.Module):
 
 def hyper_parameters():
     parameters = {
-        'concat_nframes': 21,
+        'concat_nframes': 31,
         'train_ratio': 0.8,
         'seed': 0,
         'batch_size': 512,
@@ -81,10 +81,11 @@ def hyper_parameters():
         'learning_rate': 0.0001,
         'dropout': 0.0,
         'bn': True,
+        'l2': 1.0,
         'model_path': './ckpt/work2/model.ckpt',
         'data_root': './data/work2/',
     }
-    parameters['layers'] = [parameters['concat_nframes'] * 39, 512, 256, 128, 41]
+    parameters['layers'] = [parameters['concat_nframes'] * 39, 1024, 512, 256, 128, 41]
 
     return parameters
 
@@ -212,7 +213,7 @@ def get_test_data(params):
 def train(train_loader, val_loader=None, params={}, device='cpu', log_dir='./'):
     model = Classifier(params['layers'], bn=params['bn'], dropout=params['dropout']).to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=params['learning_rate'])
+    optimizer = torch.optim.AdamW(model.parameters(), lr=params['learning_rate'], weight_decay=params['l2'])
     writer = SummaryWriter(os.path.join('/data/lifeinan/logs/hy/', log_dir))
 
     best_acc = 0.0
@@ -285,6 +286,7 @@ def train(train_loader, val_loader=None, params={}, device='cpu', log_dir='./'):
         'concat_nframes': params['concat_nframes'],
         'optimizer': 'adamw',
         'bn': params['bn'],
+        'l2': params['l2'],
     }
     if val_loader is None:
         torch.save(model.state_dict(), params['model_path'])
