@@ -1,4 +1,5 @@
 import os
+import datetime
 import random
 import argparse
 
@@ -14,6 +15,7 @@ from torch.utils.data import Dataset, DataLoader
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--trail_id', type=str, default='test')
+    parser.add_argument('--timestamp', action='store_true')
     parser.add_argument('mode', type=str)
     return parser
 
@@ -72,7 +74,7 @@ def hyper_parameters():
         'train_ratio': 0.8,
         'seed': 0,
         'batch_size': 512,
-        'num_epochs': 1,
+        'num_epochs': 20,
         'learning_rate': 0.0001,
         'dropout': 0.25,
         'model_path': './ckpt/work2/model.ckpt',
@@ -203,11 +205,11 @@ def get_test_data(params):
     return test_loader
 
 
-def train(train_loader, val_loader=None, params={}, device='cpu', trail_id='./'):
-    model = Classifier(params['layers'], dropout=0.75).to(device)
+def train(train_loader, val_loader=None, params={}, device='cpu', log_dir='./'):
+    model = Classifier(params['layers'], dropout=params['dropout']).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=params['learning_rate'])
-    writer = SummaryWriter(os.path.join('/data/lifeinan/logs/hy/', trail_id))
+    writer = SummaryWriter(os.path.join('/data/lifeinan/logs/hy/', log_dir))
 
     best_acc = 0.0
     best_loss = 0.0
@@ -325,13 +327,17 @@ def same_seeds(seed=0):
 
 def main():
     args = get_parser().parse_args()
+    if args.timestamp:
+        log_dir = args.trail_id + '_' + str(int(datetime.datetime.now().timestamp()))
+    else:
+        log_dir = args.trail_id
     params = hyper_parameters()
     device = 'cuda:4' if torch.cuda.is_available() else 'cpu'
     print(f'Use device: {device}')
     same_seeds(params['seed'])
     if args.mode == 'train' or args.mode == 'both':
         train_loader, val_loader = get_data(params)
-        train(train_loader, val_loader, params=params, device=device, trail_id=args.trail_id)
+        train(train_loader, val_loader, params=params, device=device, log_dir=log_dir)
     elif args.mode == 'pred' or args.mode == 'both':
         test_loader = get_test_data(params)
         pred(test_loader, params, device=device)
