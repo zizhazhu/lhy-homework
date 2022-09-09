@@ -39,13 +39,16 @@ class LibriDataset(Dataset):
 
 
 class BasicBlock(nn.Module):
-    def __init__(self, input_dim, output_dim, dropout=0.5):
+    def __init__(self, input_dim, output_dim, bn=False, dropout=0.0):
         super(BasicBlock, self).__init__()
-        self.block = nn.Sequential(
-            nn.Linear(input_dim, output_dim),
-            nn.ReLU(),
-            nn.Dropout(p=dropout),
-        )
+        blocks = [nn.Linear(input_dim, output_dim)]
+        if bn:
+            blocks.append(torch.nn.BatchNorm1d(output_dim))
+        blocks.append(nn.ReLU())
+        if dropout > 0.0:
+            blocks.append(nn.Dropout(p=dropout))
+
+        self.block = nn.Sequential(*blocks)
 
     def forward(self, x):
         x = self.block(x)
@@ -53,11 +56,11 @@ class BasicBlock(nn.Module):
 
 
 class Classifier(nn.Module):
-    def __init__(self, layers, dropout=0.5):
+    def __init__(self, layers, bn=False, dropout=0.0):
         super(Classifier, self).__init__()
         layer_seqs = []
         for i in range(len(layers) - 2):
-            layer_seqs.append(BasicBlock(layers[i], layers[i+1], dropout=dropout))
+            layer_seqs.append(BasicBlock(layers[i], layers[i+1], bn=bn, dropout=dropout))
         layer_seqs.append(nn.Linear(layers[-2], layers[-1]))
         self.fc = nn.Sequential(
             *layer_seqs
@@ -76,7 +79,8 @@ def hyper_parameters():
         'batch_size': 512,
         'num_epochs': 20,
         'learning_rate': 0.0001,
-        'dropout': 0.25,
+        'dropout': 0.0,
+        'bn': True,
         'model_path': './ckpt/work2/model.ckpt',
         'data_root': './data/work2/',
     }
@@ -206,7 +210,7 @@ def get_test_data(params):
 
 
 def train(train_loader, val_loader=None, params={}, device='cpu', log_dir='./'):
-    model = Classifier(params['layers'], dropout=params['dropout']).to(device)
+    model = Classifier(params['layers'], bn=params['bn'], dropout=params['dropout']).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=params['learning_rate'])
     writer = SummaryWriter(os.path.join('/data/lifeinan/logs/hy/', log_dir))
@@ -280,6 +284,7 @@ def train(train_loader, val_loader=None, params={}, device='cpu', log_dir='./'):
         'num_epochs': params['num_epochs'],
         'concat_nframes': params['concat_nframes'],
         'optimizer': 'adamw',
+        'bn': params['bn'],
     }
     if val_loader is None:
         torch.save(model.state_dict(), params['model_path'])
@@ -297,7 +302,7 @@ def train(train_loader, val_loader=None, params={}, device='cpu', log_dir='./'):
 
 
 def pred(test_loader, params, device='cpu'):
-    model = Classifier(params['layers']).to(device)
+    model = Classifier(params['layers'], bn=params['bn'], dropout=params['dropout']).to(device)
     model.load_state_dict(torch.load(params['model_path']))
     model.eval()
     predictions = []
