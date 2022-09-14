@@ -1,4 +1,5 @@
 import os
+import math
 import datetime
 import random
 import argparse
@@ -66,6 +67,23 @@ class AttentionBlock(nn.Module):
         return x
 
 
+class PositionalEncoding(nn.Module):  # documentation code
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
+        super(PositionalEncoding, self).__init__()  # new shortcut syntax
+        self.dropout = torch.nn.Dropout(p=dropout)
+        pe = torch.zeros(max_len, d_model)  # like 10x4
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0)
+        self.register_buffer('pe', pe)  # allows state-save
+
+    def forward(self, x):
+        x = x + self.pe[:, x.size(1), :]
+        return self.dropout(x)
+
+
 class NNClassifier(nn.Module):
     def __init__(self, layers, bn=False, dropout=0.0):
         super(NNClassifier, self).__init__()
@@ -88,9 +106,9 @@ class AttClassifier(nn.Module):
         self.n_concat = n_concat
         self.input_dim = input_dim
         self.att_dim = att_dim
-        self.attention = []
-        for index in range(att_layer):
-            self.attention.append(AttentionBlock(att_dim, att_head, dropout=dropout))
+        self.transformer = torch.nn.Transformer(
+            att_dim, att_head, num_encoder_layers=att_layer, num_decoder_layers=att_layer, dropout=dropout,
+            batch_first=True)
         self.input_layer = torch.nn.Sequential(
             torch.nn.Linear(input_dim, att_dim),
             torch.nn.ReLU(),
@@ -100,9 +118,7 @@ class AttClassifier(nn.Module):
     def forward(self, x):
         x = x.view(-1, self.n_concat, self.input_dim)
         att_input = self.input_layer(x)
-        att_output = att_input
-        for layer in self.attention:
-            att_output = layer(att_output)
+        att_output = self.transformer(att_input)
         att_output = att_output.reshape(-1, self.att_dim * self.n_concat)
         all_output = self.output_layer(att_output)
         return all_output
@@ -112,6 +128,7 @@ class AttClassifier(nn.Module):
         self.output_layer.to(device)
         for layer in self.attention:
             layer.to(device)
+        self.pe.to(device)
 
 
 def hyper_parameters():
@@ -122,12 +139,12 @@ def hyper_parameters():
         'batch_size': 512,
         'num_epochs': 10,
         'learning_rate': 0.0001,
-        'dropout': 0.0,
+        'dropout': 0.25,
         'bn': False,
         'l2': 0.0,
         'model_path': './ckpt/work2/model.ckpt',
         'data_root': './data/work2/',
-        'layers': (256, 4, 3),
+        'layers': (128, 4, 2),
     }
 
     return parameters
@@ -256,7 +273,7 @@ def get_test_data(params):
 def train(train_loader, val_loader=None, params={}, device='cpu', log_dir='./'):
     model = AttClassifier(params['layers'][0], params['layers'][1], params['layers'][2], params['concat_nframes'],
                        dropout=params['dropout'],)
-    model.move_to(device)
+    model.to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=params['learning_rate'], weight_decay=params['l2'])
     writer = SummaryWriter(os.path.join('/data/lifeinan/logs/hy/', log_dir))
@@ -351,7 +368,7 @@ def train(train_loader, val_loader=None, params={}, device='cpu', log_dir='./'):
 def pred(test_loader, params, device='cpu'):
     model = AttClassifier(params['layers'][0], params['layers'][1], params['layers'][2], params['concat_nframes'],
                           dropout=params['dropout'])
-    model.move_to(device)
+    model.to(device)
     model.load_state_dict(torch.load(params['model_path']))
     model.eval()
     predictions = []
