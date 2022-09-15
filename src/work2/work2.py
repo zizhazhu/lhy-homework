@@ -12,6 +12,8 @@ import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import Dataset, DataLoader
 
+from util import get_device, set_rand_seed
+
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -19,24 +21,6 @@ def get_parser():
     parser.add_argument('--timestamp', action='store_true')
     parser.add_argument('mode', type=str)
     return parser
-
-
-class LibriDataset(Dataset):
-    def __init__(self, X, y=None):
-        self.data = X
-        if y is not None:
-            self.label = y
-        else:
-            self.label = None
-
-    def __getitem__(self, idx):
-        if self.label is None:
-            return self.data[idx]
-        else:
-            return self.data[idx], self.label[idx]
-
-    def __len__(self):
-        return len(self.data)
 
 
 class BasicBlock(nn.Module):
@@ -386,16 +370,6 @@ def pred(test_loader, params, device='cpu'):
             f.write(f'{i},{y}\n')
 
 
-def same_seeds(seed=0):
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
-
-
 def main():
     args = get_parser().parse_args()
     if args.timestamp:
@@ -403,9 +377,8 @@ def main():
     else:
         log_dir = args.trail_id
     params = hyper_parameters()
-    device = 'cuda:4' if torch.cuda.is_available() else 'cpu'
-    print(f'Use device: {device}')
-    same_seeds(params['seed'])
+    device = get_device('cuda:4', verbose=True)
+    set_rand_seed(params['seed'])
     if args.mode == 'train' or args.mode == 'both':
         train_loader, val_loader = get_data(params)
         train(train_loader, val_loader, params=params, device=device, log_dir=log_dir)
