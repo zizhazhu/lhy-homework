@@ -2,7 +2,7 @@ import csv
 
 import numpy as np
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 
 
 class COVID19Dataset(Dataset):
@@ -74,3 +74,13 @@ class COVID19Dataset(Dataset):
     def __len__(self):
         # Returns the size of the dataset
         return len(self.data)
+
+
+def prep_dataloader(path, mode, batch_size, n_jobs=0, selection=None):
+    """ Generates a dataset, then is put into a dataloader. """
+    dataset = COVID19Dataset(path, mode=mode, selection=selection)  # Construct dataset
+    dataloader = DataLoader(
+        dataset, batch_size,
+        shuffle=(mode == 'train'), drop_last=False,
+        num_workers=n_jobs, pin_memory=True)                            # Construct dataloader
+    return dataloader

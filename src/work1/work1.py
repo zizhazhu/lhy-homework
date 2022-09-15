@@ -3,21 +3,10 @@ import csv
 
 from sklearn.feature_selection import SelectKBest, f_regression
 import torch
-from torch.utils.data import DataLoader
 
+from util.dataset.covid19 import prep_dataloader, COVID19Dataset
 from util.model.nn import NeuralNet
-from util.dataset import COVID19Dataset
 from util.util import set_rand_seed, get_device, plot_learning_curve, plot_pred
-
-
-def prep_dataloader(path, mode, batch_size, n_jobs=0, selection=None):
-    """ Generates a dataset, then is put into a dataloader. """
-    dataset = COVID19Dataset(path, mode=mode, selection=selection)  # Construct dataset
-    dataloader = DataLoader(
-        dataset, batch_size,
-        shuffle=(mode == 'train'), drop_last=False,
-        num_workers=n_jobs, pin_memory=True)                            # Construct dataloader
-    return dataloader
 
 
 def train(tr_set, dv_set, model, config, device):
@@ -130,19 +119,19 @@ def main():
     dataset = COVID19Dataset(train_data_path, 'train')
     select = feature_selection(dataset)
 
-    train_dataset = prep_dataloader(train_data_path, 'train', params['batch_size'], selection=select)
-    valid_dataset = prep_dataloader(train_data_path, 'dev', params['batch_size'], selection=select)
-    test_dataset = prep_dataloader(test_data_path, 'test', params['batch_size'], selection=select)
+    train_loader = prep_dataloader(train_data_path, 'train', params['batch_size'], selection=select)
+    valid_loader = prep_dataloader(train_data_path, 'dev', params['batch_size'], selection=select)
+    test_loader = prep_dataloader(test_data_path, 'test', params['batch_size'], selection=select)
 
-    model = NeuralNet(train_dataset.dataset.dim, layers=params['layers'], dropout=params['dropout']).to(device)
-    model_loss, model_loss_record = train(train_dataset, valid_dataset, model, params, device)
+    model = NeuralNet(train_loader.dataset.dim, layers=params['layers'], dropout=params['dropout']).to(device)
+    model_loss, model_loss_record = train(train_loader, valid_loader, model, params, device)
 
     plot_learning_curve(model_loss_record, title='deep model')
     del model
-    model = NeuralNet(train_dataset.dataset.dim, layers=params['layers'], dropout=params['dropout']).to(device)
+    model = NeuralNet(train_loader.dataset.dim, layers=params['layers'], dropout=params['dropout']).to(device)
     ckpt = torch.load(params['save_path'], map_location='cpu')  # Load your best model
     model.load_state_dict(ckpt)
-    plot_pred(valid_dataset, model, device)  # Show prediction on the validation set
+    plot_pred(valid_loader, model, device)  # Show prediction on the validation set
     def save_pred(preds, file):
         ''' Save predictions to specified file '''
         print('Saving results to {}'.format(file))
@@ -152,7 +141,7 @@ def main():
             for i, p in enumerate(preds):
                 writer.writerow([i, p])
 
-    preds = test(test_dataset, model, device)  # predict COVID-19 cases with your model
+    preds = test(test_loader, model, device)  # predict COVID-19 cases with your model
     save_pred(preds, 'result/pred.csv')         # save prediction file to pred.csv
 
 
