@@ -11,6 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 
 from util import get_device, set_rand_seed
+from util.dataset import LibriDataset
 from util.model.attention import AttClassifier
 
 

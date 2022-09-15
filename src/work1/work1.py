@@ -6,6 +6,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from util.model.nn import NeuralNet
+from util.dataset import COVID19Dataset
 from util.util import set_rand_seed, get_device, plot_learning_curve, plot_pred
 
 
