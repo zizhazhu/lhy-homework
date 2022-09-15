@@ -1,12 +1,11 @@
 import os
 import csv
 
-import numpy as np
 from sklearn.feature_selection import SelectKBest, f_regression
 import torch
-import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 
+from util.model.nn import NeuralNet
 from util.util import set_rand_seed, get_device, plot_learning_curve, plot_pred
 
 
@@ -18,38 +17,6 @@ def prep_dataloader(path, mode, batch_size, n_jobs=0, selection=None):
         shuffle=(mode == 'train'), drop_last=False,
         num_workers=n_jobs, pin_memory=True)                            # Construct dataloader
     return dataloader
-
-
-class NeuralNet(nn.Module):
-    ''' A simple fully-connected deep neural network '''
-    def __init__(self, input_dim, layers=(128, 64, 32), activation=nn.ReLU, dropout=None, bn=True):
-        super(NeuralNet, self).__init__()
-
-        # Define your neural network here
-        seqs = []
-        last_layer = input_dim
-        for layer in layers:
-            seqs.append(nn.Linear(last_layer, layer))
-            last_layer = layer
-            if activation is not None:
-                seqs.append(activation())
-            if dropout is not None:
-                seqs.append(nn.Dropout(p=dropout))
-            if bn:
-                seqs.append(nn.BatchNorm1d(layer))
-        seqs.append(nn.Linear(last_layer, 1))
-        self.net = nn.Sequential(*seqs)
-
-        # Mean squared error loss
-        self.criterion = nn.MSELoss(reduction='mean')
-
-    def forward(self, x):
-        ''' Given input of size (batch_size x input_dim), compute output of the network '''
-        return self.net(x).squeeze(1)
-
-    def cal_loss(self, pred, target):
-        ''' Calculate loss '''
-        return self.criterion(pred, target)
 
 
 def train(tr_set, dv_set, model, config, device):

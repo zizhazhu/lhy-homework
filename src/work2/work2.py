@@ -1,5 +1,4 @@
 import os
-import math
 import datetime
 import random
 import argparse
@@ -8,11 +7,11 @@ import numpy as np
 from tqdm import tqdm
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 
 from util import get_device, set_rand_seed
+from util.model.attention import AttClassifier
 
 
 def get_parser():
@@ -21,98 +20,6 @@ def get_parser():
     parser.add_argument('--timestamp', action='store_true')
     parser.add_argument('mode', type=str)
     return parser
-
-
-class BasicBlock(nn.Module):
-    def __init__(self, input_dim, output_dim, bn=False, dropout=0.0):
-        super(BasicBlock, self).__init__()
-        blocks = [nn.Linear(input_dim, output_dim)]
-        if bn:
-            blocks.append(torch.nn.BatchNorm1d(output_dim))
-        blocks.append(nn.ReLU())
-        if dropout > 0.0:
-            blocks.append(nn.Dropout(p=dropout))
-
-        self.block = nn.Sequential(*blocks)
-
-    def forward(self, x):
-        x = self.block(x)
-        return x
-
-
-class AttentionBlock(nn.Module):
-
-    def __init__(self, dim, num_heads=1, dropout=0.0):
-        super(AttentionBlock, self).__init__()
-        self.attention = torch.nn.MultiheadAttention(dim, num_heads=num_heads, dropout=dropout, batch_first=True)
-
-    def forward(self, query):
-        x, _ = self.attention.forward(query, query, query, need_weights=False)
-        return x
-
-
-class PositionalEncoding(nn.Module):  # documentation code
-    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
-        super(PositionalEncoding, self).__init__()  # new shortcut syntax
-        self.dropout = torch.nn.Dropout(p=dropout)
-        pe = torch.zeros(max_len, d_model)  # like 10x4
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0)
-        self.register_buffer('pe', pe)  # allows state-save
-
-    def forward(self, x):
-        x = x + self.pe[:, x.size(1), :]
-        return self.dropout(x)
-
-
-class NNClassifier(nn.Module):
-    def __init__(self, layers, bn=False, dropout=0.0):
-        super(NNClassifier, self).__init__()
-        layer_seqs = []
-        for i in range(len(layers) - 2):
-            layer_seqs.append(BasicBlock(layers[i], layers[i+1], bn=bn, dropout=dropout))
-        layer_seqs.append(nn.Linear(layers[-2], layers[-1]))
-        self.fc = nn.Sequential(
-            *layer_seqs
-        )
-
-    def forward(self, x):
-        x = self.fc(x)
-        return x
-
-
-class AttClassifier(nn.Module):
-    def __init__(self, att_dim, att_head, att_layer, n_concat, input_dim=39, output_dim=41, dropout=0.0):
-        super(AttClassifier, self).__init__()
-        self.n_concat = n_concat
-        self.input_dim = input_dim
-        self.att_dim = att_dim
-        self.transformer = torch.nn.Transformer(
-            att_dim, att_head, num_encoder_layers=att_layer, num_decoder_layers=att_layer, dropout=dropout,
-            batch_first=True)
-        self.input_layer = torch.nn.Sequential(
-            torch.nn.Linear(input_dim, att_dim),
-            torch.nn.ReLU(),
-        )
-        self.output_layer = torch.nn.Linear(self.n_concat * att_dim, output_dim)
-
-    def forward(self, x):
-        x = x.view(-1, self.n_concat, self.input_dim)
-        att_input = self.input_layer(x)
-        att_output = self.transformer(att_input)
-        att_output = att_output.reshape(-1, self.att_dim * self.n_concat)
-        all_output = self.output_layer(att_output)
-        return all_output
-
-    def move_to(self, device):
-        self.input_layer.to(device)
-        self.output_layer.to(device)
-        for layer in self.attention:
-            layer.to(device)
-        self.pe.to(device)
 
 
 def hyper_parameters():
@@ -256,7 +163,7 @@ def get_test_data(params):
 
 def train(train_loader, val_loader=None, params={}, device='cpu', log_dir='./'):
     model = AttClassifier(params['layers'][0], params['layers'][1], params['layers'][2], params['concat_nframes'],
-                       dropout=params['dropout'],)
+                          dropout=params['dropout'], )
     model.to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=params['learning_rate'], weight_decay=params['l2'])
