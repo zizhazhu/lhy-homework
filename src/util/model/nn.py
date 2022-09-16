@@ -23,7 +23,6 @@ class NeuralNet(nn.Module):
         self.net = nn.Sequential(*seqs)
 
         # Mean squared error loss
-        self.criterion = nn.MSELoss(reduction='mean')
 
     def forward(self, x):
         ''' Given input of size (batch_size x input_dim), compute output of the network '''
