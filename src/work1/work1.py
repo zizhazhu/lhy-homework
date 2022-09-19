@@ -1,6 +1,7 @@
 import os
 import csv
 
+from tqdm import tqdm
 from sklearn.feature_selection import SelectKBest, f_regression
 import torch
 
@@ -41,12 +42,14 @@ def train(train_loader, val_loader, params, device='cpu'):
     early_stop_cnt = 0
     epoch = 0
     while epoch < n_epochs:
-        model.train()                           # set model to training mode
-        for x, y in train_loader:                     # iterate through the dataloader
+        model.train()
+        for i, batch in enumerate(tqdm(train_loader)):
+            features, labels = batch
+            features, labels = features.to(device), labels.to(device)
+
             optimizer.zero_grad()               # set gradient to zero
-            x, y = x.to(device), y.to(device)   # move data to device (cpu/cuda)
-            pred = model(x)                     # forward pass (compute output)
-            mse_loss = criterion(pred, y)  # compute loss
+            pred = model(features)                     # forward pass (compute output)
+            mse_loss = criterion(pred, labels)  # compute loss
             mse_loss.backward()                 # compute gradient (backpropagation)
             optimizer.step()                    # update model with optimizer
             loss_record['train'].append(mse_loss.detach().cpu().item())
