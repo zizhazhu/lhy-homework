@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 from tqdm.auto import tqdm
@@ -5,7 +6,7 @@ from tqdm.auto import tqdm
 
 class Trainer:
     def __init__(self, model, criterion, optimizer, device='cpu', writer=None, model_path=None):
-        self._model = model
+        self._model = model.to(device)
         self._device = device
         self._criterion = criterion
         self._optimizer = optimizer
@@ -91,3 +92,14 @@ class Trainer:
                 self._writer.add_scalar('acc/valid', valid_acc_avg, epoch+1)
                 self._writer.add_scalar('loss/valid', valid_loss_avg, epoch+1)
         return valid_acc_avg, valid_loss_avg
+
+    def predict(self, test_loader):
+        self._model.eval()
+        predictions = []
+        with torch.no_grad():
+            for data, _ in test_loader:
+                data = data.to(self._device)
+                test_pred = self._model(data)
+                test_label = torch.argmax(test_pred, dim=1).cpu().numpy()
+                predictions += test_label.tolist()
+        return predictions

@@ -61,3 +61,10 @@ def plot_pred(dv_set, model, device, lim=35., preds=None, targets=None):
     plt.ylabel('predicted value')
     plt.title('Ground Truth v.s. Prediction')
     plt.show()
+
+
+def csv_dump(csv_file, no, pred, title=("Id", "Category")):
+    with open(csv_file, 'w') as csv_file:
+        csv_file.write(",".join(title) + "\n")
+        for i in range(len(no)):
+            csv_file.write(f"{no[i]},{pred[i]}\n")

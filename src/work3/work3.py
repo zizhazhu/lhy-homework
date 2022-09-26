@@ -16,13 +16,10 @@ def get_args():
 def hyper_parameters():
     parameters = {
         'seed': 0,
-        'batch_size': 512,
+        'batch_size': 64,
         'num_epochs': 10,
         'learning_rate': 0.0001,
-        'dropout': 0.25,
-        'bn': False,
         'l2': 0.0,
-        'layers': (128, 4, 2),
     }
 
     return parameters
@@ -59,10 +56,13 @@ def main():
         valid_loader = DataLoader(valid_dataset, batch_size=params['batch_size'], shuffle=True)
         trainer.train_and_eval(train_loader, valid_loader, params['num_epochs'], verbose=True)
     else:
+        result_file = os.path.join(args.output_dir, 'work3/predictions.csv')
         test_dataset = util.dataset.FoodDataset(os.path.join(args.data_dir, 'test'), test_tfm)
         test_loader = DataLoader(test_dataset, batch_size=params['batch_size'], shuffle=True)
         model.load_state_dict(torch.load(model_path))
         predictions = trainer.predict(test_loader)
+        ids = [f"{i:04}" for i in range(1, len(predictions)+1)]
+        util.csv_dump(result_file, ids, predictions, title=['Id', 'Category'])
 
 
 if __name__ == '__main__':
