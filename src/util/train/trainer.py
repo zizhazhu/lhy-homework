@@ -23,8 +23,12 @@ class Trainer:
             if verbose:
                 print(f"Valid Acc: {valid_acc_avg} Loss: {valid_loss_avg}")
             if valid_acc_avg > best_acc:
+                if verbose:
+                    print(f"Valid Acc: {valid_acc_avg} is better than Best Acc: {best_acc}, save the model")
                 torch.save(self._model.state_dict(), self._model_path)
                 best_acc = valid_acc_avg
+            elif verbose:
+                print(f"Valid Acc: {valid_acc_avg} is worse than Best Acc: {best_acc}, skip saving")
 
     def train(self, train_loader, n_epochs=1, verbose=False):
         train_acc_avg = 0.0
@@ -103,3 +107,6 @@ class Trainer:
                 test_label = torch.argmax(test_pred, dim=1).cpu().numpy()
                 predictions += test_label.tolist()
         return predictions
+
+    def load(self, ckpt):
+        self._model.load_state_dict(torch.load(ckpt))

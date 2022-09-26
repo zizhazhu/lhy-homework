@@ -19,7 +19,7 @@ def hyper_parameters():
         'batch_size': 64,
         'num_epochs': 10,
         'learning_rate': 0.0001,
-        'l2': 0.0,
+        'l2': 0.001,
     }
 
     return parameters
@@ -58,7 +58,7 @@ def main():
     else:
         result_file = os.path.join(args.output_dir, 'work3/predictions.csv')
         test_dataset = util.dataset.FoodDataset(os.path.join(args.data_dir, 'test'), test_tfm)
-        test_loader = DataLoader(test_dataset, batch_size=params['batch_size'], shuffle=True)
+        test_loader = DataLoader(test_dataset, batch_size=params['batch_size'], shuffle=False)
         model.load_state_dict(torch.load(model_path))
         predictions = trainer.predict(test_loader)
         ids = [f"{i:04}" for i in range(1, len(predictions)+1)]
