@@ -19,7 +19,7 @@ def hyper_parameters():
         'batch_size': 64,
         'num_epochs': 10,
         'learning_rate': 0.0001,
-        'l2': 0.001,
+        'l2': 0.01,
     }
 
     return parameters

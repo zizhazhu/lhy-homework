@@ -1,3 +1,5 @@
+import torch
+import torch.nn.functional as F
 import torch.nn as nn
 
 
@@ -40,8 +42,45 @@ class CNNClassifier(nn.Module):
             nn.ReLU(),
             nn.Linear(512, 11)
         )
+        self.localization = nn.Sequential(
+            nn.Conv2d(3, 8, kernel_size=7),  # [8, 122, 122]
+            nn.MaxPool2d(2, stride=2),  # [8, 61, 61]
+            nn.ReLU(True),
+            nn.Conv2d(8, 16, kernel_size=5),  # [16, 59, 59]
+            nn.MaxPool2d(2, stride=2),  # [16, 29, 29]
+            nn.ReLU(True),
+            nn.Conv2d(16, 32, kernel_size=3),  # [32, 27, 27]
+            nn.MaxPool2d(2, stride=2),  # [32, 13, 13]
+            nn.ReLU(True),
+            nn.Conv2d(32, 64, kernel_size=3),  # [64, 11, 11]
+            nn.MaxPool2d(2, stride=2),  # [64, 5, 5]
+            nn.ReLU(True),
+        )
+
+        # Regressor for the 3 * 2 affine matrix
+        self.fc_loc = nn.Sequential(
+            nn.Linear(64 * 5 * 5, 32),
+            nn.ReLU(True),
+            nn.Linear(32, 3 * 2)
+        )
+
+        # Initialize the weights/bias with identity transformation
+        self.fc_loc[2].weight.data.zero_()
+        self.fc_loc[2].bias.data.copy_(torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float))
+
+    def stn(self, x):
+        xs = self.localization(x)
+        xs = xs.view(-1, 64 * 5 * 5)
+        theta = self.fc_loc(xs)
+        theta = theta.view(-1, 2, 3)
+
+        grid = F.affine_grid(theta, x.size())
+        x = F.grid_sample(x, grid)
+
+        return x
 
     def forward(self, x):
-        out = self.cnn(x)
+        stn = self.stn(x)
+        out = self.cnn(stn)
         out = out.view(out.size()[0], -1)
         return self.fc(out)
