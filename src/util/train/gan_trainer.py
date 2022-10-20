@@ -71,7 +71,7 @@ class GANTrainer:
             torchvision.utils.save_image(fake_images, filename, nrow=8)
 
             if verbose:
-                grid_img = torchvision.utils.make_grid(fake_images, nrow=8)
+                grid_img = torchvision.utils.make_grid(fake_images.cpu(), nrow=8)
                 plt.figure(figsize=(10, 10))
                 plt.imshow(grid_img.permute(1, 2, 0))
                 plt.show()
