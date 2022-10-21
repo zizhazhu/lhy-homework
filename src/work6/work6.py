@@ -14,10 +14,12 @@ def get_args():
 def hyper_parameters():
     parameters = {
         'seed': 0,
-        'batch_size': 64,
+        'batch_size': 128,
         'num_epochs': 10,
         'learning_rate': 0.0001,
         'l2': 0.01,
+        'n_critic': 1,
+        'n_latent': 100,
     }
 
     return parameters
@@ -32,13 +34,15 @@ def main():
     generator = util.model.Generator(100)
     discriminator = util.model.Discriminator(3)
     criterion = torch.nn.BCELoss()
-    g_optimizer = torch.optim.AdamW(generator.parameters(), lr=params['learning_rate'], weight_decay=params['l2'])
-    d_optimizer = torch.optim.AdamW(discriminator.parameters(), lr=params['learning_rate'], weight_decay=params['l2'])
+    g_optimizer = torch.optim.Adam(generator.parameters(), lr=params['learning_rate'], betas=(0.5, 0.999))
+    d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=params['learning_rate'], betas=(0.5, 0.999))
 
     train_loader = util.dataset.crypko_dataloader(args.data_dir, params['batch_size'])
-    trainer = util.train.GANTrainer(generator, discriminator, criterion, g_optimizer, d_optimizer, device,
-                                    model_path=args.model_dir)
-    trainer.train(train_loader, params['num_epochs'], verbose=True)
+    trainer = util.train.GANTrainer(
+        generator, discriminator, criterion, g_optimizer, d_optimizer, n_latent=params['n_latent'],
+        device=device, model_path=args.model_dir, output_dir=args.output_dir,
+    )
+    trainer.train(train_loader, params['num_epochs'], params['n_critic'], verbose=True)
 
 
 if __name__ == '__main__':
