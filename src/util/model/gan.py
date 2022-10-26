@@ -28,8 +28,8 @@ class Generator(nn.Module):
         return nn.Sequential(
             nn.ConvTranspose2d(in_dim, out_dim, kernel_size=5, stride=2,
                                padding=2, output_padding=1, bias=False),  # double height and width
+            nn.ReLU(True),
             nn.BatchNorm2d(out_dim),
-            nn.ReLU(True)
         )
 
     def forward(self, x):
@@ -46,9 +46,9 @@ class Discriminator(nn.Module):
         model_seq = [
             nn.Conv2d(in_dim, feature_dim, kernel_size=4, stride=2, padding=1), #(batch, 3, 32, 32)
             nn.LeakyReLU(0.2),
-            self.conv_bn_lrelu(feature_dim, feature_dim * 2),                   #(batch, 3, 16, 16)
-            self.conv_bn_lrelu(feature_dim * 2, feature_dim * 4),               #(batch, 3, 8, 8)
-            self.conv_bn_lrelu(feature_dim * 4, feature_dim * 8),               #(batch, 3, 4, 4)
+            self.conv_bn_lrelu(feature_dim, feature_dim * 2, 16, 16),                   #(batch, 3, 16, 16)
+            self.conv_bn_lrelu(feature_dim * 2, feature_dim * 4, 8, 8),               #(batch, 3, 8, 8)
+            self.conv_bn_lrelu(feature_dim * 4, feature_dim * 8, 4, 4),               #(batch, 3, 4, 4)
             nn.Conv2d(feature_dim * 8, 1, kernel_size=4, stride=1, padding=0),
         ]
         if not wasserstein:
@@ -56,7 +56,7 @@ class Discriminator(nn.Module):
         self.l1 = nn.Sequential(*model_seq)
         self.apply(weights_init)
 
-    def conv_bn_lrelu(self, in_dim, out_dim):
+    def conv_bn_lrelu(self, in_dim, out_dim, w, d):
         """
         NOTE FOR SETTING DISCRIMINATOR:
 
@@ -66,8 +66,7 @@ class Discriminator(nn.Module):
 
         return nn.Sequential(
             nn.Conv2d(in_dim, out_dim, 4, 2, 1),
-            nn.BatchNorm2d(out_dim),
-            nn.LeakyReLU(0.2),
+            nn.LeakyReLU(0.2, inplace=True),
         )
 
     def forward(self, x):

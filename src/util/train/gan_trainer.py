@@ -10,7 +10,7 @@ class GANTrainer:
 
     def __init__(self, generator, discriminator, criterion, g_optimizer, d_optimizer,
                  n_latent=100, device='cpu', writer=None, model_path=None, output_dir=None,
-                 wasserstein=False, clip_value=0.01):
+                 wasserstein=False, clip_value=0.01, gp_weight=10):
         self._generator = generator.to(device)
         self._discriminator = discriminator.to(device)
         self._device = device
@@ -23,9 +23,25 @@ class GANTrainer:
         self._n_latent = n_latent
         self._wasserstein = wasserstein
         self._clip_value = clip_value
+        self._gp_weight = gp_weight
 
         self._global_step = 0
         self._z_fixed = torch.autograd.Variable(torch.randn(64, self._n_latent)).to(self._device)
+
+    def _gradient_penalty(self, real, fake):
+        batch_size = real.shape[0]
+        # choose random interpolation point
+        alpha = torch.rand(batch_size, 1, 1, 1).to(self._device)
+        interpolates = (alpha * real + ((1 - alpha) * fake)).requires_grad_(True)
+        # calculate probability of interpolates
+        interpolates_prob = self._discriminator(interpolates)
+        # calculate gradients of probabilities with respect to interpolates
+        fake = torch.autograd.Variable(torch.ones(interpolates_prob.size()), requires_grad=True).to(self._device)
+        gradients = torch.autograd.grad(outputs=interpolates_prob, inputs=interpolates,
+                                        grad_outputs=fake, create_graph=True, retain_graph=True, only_inputs=True)[0]
+        gradients = gradients.view(batch_size, -1)
+        gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
+        return gradient_penalty
 
     def train(self, train_loader, n_epochs=1, n_critic=8, verbose=False):
         for epoch in range(n_epochs):
@@ -35,6 +51,7 @@ class GANTrainer:
 
                 # Train D
                 self._discriminator.train()
+                self._discriminator.zero_grad()
                 z = torch.autograd.Variable(torch.randn(batch_size, self._n_latent)).to(self._device)
                 real_image = img
                 real_labels = torch.ones(batch_size).to(self._device)
@@ -47,17 +64,13 @@ class GANTrainer:
                 fake_loss = self._criterion(fake_logits, fake_labels)
 
                 if self._wasserstein:
-                    d_loss = torch.mean(fake_logits) - torch.mean(real_logits)
+                    d_loss = torch.mean(fake_logits) - torch.mean(real_logits) + \
+                             self._gp_weight * self._gradient_penalty(real_image.data, fake_image.data)
                 else:
                     d_loss = real_loss + fake_loss
 
-                self._discriminator.zero_grad()
                 d_loss.backward()
                 self._d_optimizer.step()
-
-                if self._wasserstein:
-                    for para in self._discriminator.parameters():
-                        para.data.clamp_(-self._clip_value, self._clip_value)
 
                 # Train G
                 # train generator every n_critic steps

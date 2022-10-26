@@ -14,11 +14,11 @@ def get_args():
 def hyper_parameters():
     parameters = {
         'seed': 0,
-        'batch_size': 128,
+        'batch_size': 64,
         'num_epochs': 10,
-        'learning_rate': 0.0001,
+        'learning_rate': 0.0002,
         'l2': 0.01,
-        'n_critic': 1,
+        'n_critic': 5,
         'n_latent': 100,
         'clip_value': 0.01,
     }
@@ -32,11 +32,11 @@ def main():
     device = get_device('cuda:4')
     set_rand_seed(params['seed'])
 
-    generator = util.model.Generator(100)
+    generator = util.model.Generator(params['n_latent'])
     discriminator = util.model.Discriminator(3)
     criterion = torch.nn.BCELoss()
-    g_optimizer = torch.optim.RMSprop(generator.parameters(), lr=params['learning_rate'])
-    d_optimizer = torch.optim.RMSprop(discriminator.parameters(), lr=params['learning_rate'])
+    g_optimizer = torch.optim.Adam(generator.parameters(), lr=params['learning_rate'], betas=(0.5, 0.999))
+    d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=params['learning_rate'], betas=(0.5, 0.999))
 
     train_loader = util.dataset.crypko_dataloader(args.data_dir, params['batch_size'])
     trainer = util.train.GANTrainer(
