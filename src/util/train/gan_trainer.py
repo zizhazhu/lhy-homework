@@ -9,7 +9,8 @@ from tqdm import tqdm
 class GANTrainer:
 
     def __init__(self, generator, discriminator, criterion, g_optimizer, d_optimizer,
-                 n_latent=100, device='cpu', writer=None, model_path=None, output_dir=None):
+                 n_latent=100, device='cpu', writer=None, model_path=None, output_dir=None,
+                 wasserstein=False, clip_value=0.01):
         self._generator = generator.to(device)
         self._discriminator = discriminator.to(device)
         self._device = device
@@ -20,6 +21,8 @@ class GANTrainer:
         self._model_path = model_path
         self._output_dir = output_dir
         self._n_latent = n_latent
+        self._wasserstein = wasserstein
+        self._clip_value = clip_value
 
         self._global_step = 0
         self._z_fixed = torch.autograd.Variable(torch.randn(64, self._n_latent)).to(self._device)
@@ -43,11 +46,18 @@ class GANTrainer:
                 fake_logits = self._discriminator(fake_image)
                 fake_loss = self._criterion(fake_logits, fake_labels)
 
-                d_loss = real_loss + fake_loss
+                if self._wasserstein:
+                    d_loss = torch.mean(fake_logits) - torch.mean(real_logits)
+                else:
+                    d_loss = real_loss + fake_loss
 
                 self._discriminator.zero_grad()
                 d_loss.backward()
                 self._d_optimizer.step()
+
+                if self._wasserstein:
+                    for para in self._discriminator.parameters():
+                        para.data.clamp_(-self._clip_value, self._clip_value)
 
                 # Train G
                 # train generator every n_critic steps
@@ -57,7 +67,10 @@ class GANTrainer:
                     fake_image = self._generator(z)
                     fake_labels = torch.ones(batch_size).to(self._device)
                     fake_logits = self._discriminator(fake_image)
-                    g_loss = self._criterion(fake_logits, fake_labels)
+                    if self._wasserstein:
+                        g_loss = -torch.mean(fake_logits)
+                    else:
+                        g_loss = self._criterion(fake_logits, fake_labels)
 
                     self._generator.zero_grad()
                     g_loss.backward()
