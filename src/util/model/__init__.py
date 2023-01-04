@@ -1,2 +1,2 @@
 from .cnn import CNNClassifier
-from .gan import Generator, Discriminator
+from .gan import DCNNGenerator, Discriminator
