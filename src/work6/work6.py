@@ -32,8 +32,8 @@ def main():
     device = get_device('cuda:4')
     set_rand_seed(params['seed'])
 
-    generator = util.model.DCNNGenerator(params['n_latent'])
-    discriminator = util.model.Discriminator(3)
+    generator = util.model.DCNNGenerator(params['n_latent'], bn=False)
+    discriminator = util.model.Discriminator(3, linear=True, bn=False)
     criterion = torch.nn.BCELoss()
     g_optimizer = torch.optim.Adam(generator.parameters(), lr=params['learning_rate'])
     d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=params['learning_rate'])

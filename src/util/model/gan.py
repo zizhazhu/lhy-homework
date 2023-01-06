@@ -2,13 +2,18 @@ import torch.nn as nn
 
 
 class DCNNGenerator(nn.Module):
-    def __init__(self, in_dim, feature_dim=64):
+    def __init__(self, in_dim, feature_dim=64, bn=True):
         super().__init__()
-        self.l1 = nn.Sequential(
+        self._bn = bn
+
+        l1_layers = [
+
             nn.Linear(in_dim, feature_dim * 8 * 4 * 4, bias=False),
-            nn.BatchNorm1d(feature_dim * 8 * 4 * 4),
-            nn.ReLU()
-        )
+        ]
+        if self._bn:
+            l1_layers.append(nn.BatchNorm1d(feature_dim * 8 * 4 * 4))
+        l1_layers.append(nn.ReLU(True))
+        self.l1 = nn.Sequential(*l1_layers)
         # 在使用这层前会先调整view到(batch_size, feature_dim * 8, 4, 4)
         # 逐级减少feature_dim，扩大height和width
         self.l2 = nn.Sequential(
@@ -25,12 +30,14 @@ class DCNNGenerator(nn.Module):
         self.apply(weights_init)
 
     def dconv_bn_relu(self, in_dim, out_dim):
-        return nn.Sequential(
+        dconv_layers = [
             nn.ConvTranspose2d(in_dim, out_dim, kernel_size=5, stride=2,
                                padding=2, output_padding=1, bias=False),  # double height and width
-            nn.BatchNorm2d(out_dim),
-            nn.ReLU(True),
-        )
+        ]
+        if self._bn:
+            dconv_layers.append(nn.BatchNorm2d(out_dim))
+        dconv_layers.append(nn.ReLU(True))
+        return nn.Sequential(*dconv_layers)
 
     def forward(self, x):
         y = self.l1(x)
@@ -41,8 +48,9 @@ class DCNNGenerator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, in_dim, feature_dim=64, wasserstein=False):
+    def __init__(self, in_dim, feature_dim=64, linear=True, bn=True):
         super(Discriminator, self).__init__()
+        self._bn = bn
         model_seq = [
             nn.Conv2d(in_dim, feature_dim, kernel_size=4, stride=2, padding=1),       # (batch, 3, 32, 32)
             nn.LeakyReLU(0.2),
@@ -51,24 +59,19 @@ class Discriminator(nn.Module):
             self.conv_bn_lrelu(feature_dim * 4, feature_dim * 8),             # (batch, 3, 4, 4)
             nn.Conv2d(feature_dim * 8, 1, kernel_size=4, stride=1, padding=0),
         ]
-        if not wasserstein:
+        if not linear:
             model_seq.append(nn.Sigmoid())
         self.l1 = nn.Sequential(*model_seq)
         self.apply(weights_init)
 
     def conv_bn_lrelu(self, in_dim, out_dim):
-        """
-        NOTE FOR SETTING DISCRIMINATOR:
-
-        You can't use nn.Batchnorm for WGAN-GP
-        Use nn.InstanceNorm2d instead
-        """
-
-        return nn.Sequential(
+        conv_layers = [
             nn.Conv2d(in_dim, out_dim, 4, 2, 1),
-            nn.BatchNorm2d(out_dim),
-            nn.LeakyReLU(0.2, inplace=True),
-        )
+        ]
+        if self._bn:
+            conv_layers.append(nn.BatchNorm2d(out_dim))
+        conv_layers.append(nn.LeakyReLU(0.2))
+        return nn.Sequential(*conv_layers)
 
     def forward(self, x):
         y = self.l1(x)
