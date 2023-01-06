@@ -35,14 +35,14 @@ def main():
     generator = util.model.DCNNGenerator(params['n_latent'])
     discriminator = util.model.Discriminator(3)
     criterion = torch.nn.BCELoss()
-    g_optimizer = torch.optim.Adam(generator.parameters(), lr=params['learning_rate'], betas=(0.5, 0.999))
-    d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=params['learning_rate'], betas=(0.5, 0.999))
+    g_optimizer = torch.optim.Adam(generator.parameters(), lr=params['learning_rate'])
+    d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=params['learning_rate'])
 
     train_loader = util.dataset.crypko_dataloader(args.data_dir, params['batch_size'])
-    trainer = util.train.GANTrainer(
-        generator, discriminator, criterion, g_optimizer, d_optimizer, n_latent=params['n_latent'],
+    trainer = util.train.GPGANTrainer(
+        generator, discriminator, g_optimizer, d_optimizer, n_latent=params['n_latent'],
         device=device, model_path=args.model_dir, output_dir=args.output_dir,
-        wasserstein=True, clip_value=params['clip_value'],
+        gp_weight=10,
     )
     trainer.train(train_loader, params['num_epochs'], params['n_critic'], verbose=True)
 
