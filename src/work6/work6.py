@@ -31,20 +31,21 @@ def main():
     params = hyper_parameters()
     device = get_device('cuda:4')
     set_rand_seed(params['seed'])
+    model_dir = os.path.join(args.model_dir, args.trail_id)
 
     generator = util.model.DCNNGenerator(params['n_latent'], bn=False)
     discriminator = util.model.Discriminator(3, linear=True, bn=False)
     criterion = torch.nn.BCELoss()
-    g_optimizer = torch.optim.Adam(generator.parameters(), lr=params['learning_rate'])
-    d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=params['learning_rate'])
+    g_optimizer = torch.optim.Adam(generator.parameters(), lr=params['learning_rate'], betas=(0.5, 0.999))
+    d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=params['learning_rate'], betas=(0.5, 0.999))
 
     train_loader = util.dataset.crypko_dataloader(args.data_dir, params['batch_size'])
     trainer = util.train.GPGANTrainer(
         generator, discriminator, g_optimizer, d_optimizer, n_latent=params['n_latent'],
-        device=device, model_path=args.model_dir, output_dir=args.output_dir,
+        device=device, model_path=model_dir, output_dir=args.output_dir,
         gp_weight=10,
     )
-    trainer.train(train_loader, params['num_epochs'], params['n_critic'], verbose=True)
+    trainer.train(train_loader, params['num_epochs'], params['n_critic'])
 
 
 if __name__ == '__main__':

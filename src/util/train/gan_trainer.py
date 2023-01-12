@@ -4,6 +4,7 @@ import abc
 import matplotlib.pyplot as plt
 import torch
 import torchvision
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 
@@ -25,6 +26,8 @@ class GANTrainer:
         self._global_step = 0
         self._z_fixed = torch.autograd.Variable(torch.randn(64, self._n_latent)).to(self._device)
 
+        self._writer = SummaryWriter(log_dir=self._model_path)
+
     @abc.abstractmethod
     def _d_loss(self, real_logits, fake_logits, real_images, fake_images):
         raise NotImplementedError()
@@ -37,7 +40,7 @@ class GANTrainer:
     def _clip_weights(self):
         pass
 
-    def train(self, train_loader, n_epochs=1, n_critic=8, verbose=False):
+    def train(self, train_loader, n_epochs=1, n_critic=8, interval=100):
         for epoch in range(n_epochs):
             d_loss = g_loss = 0.0
             for i, data in enumerate(tqdm(train_loader)):
@@ -74,20 +77,16 @@ class GANTrainer:
                     g_loss.backward()
                     self._g_optimizer.step()
 
+                if self._global_step % interval == 0:
+                    self._generator.eval()
+                    fake_images = (self._generator(self._z_fixed).data + 1) / 2
+                    self._writer.add_scalar('d_loss', d_loss.item(), self._global_step)
+                    self._writer.add_scalar('g_loss', g_loss.item(), self._global_step)
+                    self._writer.add_image('fake_image', torchvision.utils.make_grid(fake_images), self._global_step)
+
                 self._global_step += 1
 
-            self._generator.eval()
-            fake_images = (self._generator(self._z_fixed).data + 1) / 2
-            # TODO: use tensorboard save image
-            filename = os.path.join(self._output_dir, f'epoch_{epoch:03d}.png')
             print(f'Discriminator Loss: {d_loss.data:.4f}, Generator Loss: {g_loss.data:.4f}')
-            torchvision.utils.save_image(fake_images, filename, nrow=8)
-
-            if verbose:
-                grid_img = torchvision.utils.make_grid(fake_images.cpu(), nrow=8)
-                plt.figure(figsize=(10, 10))
-                plt.imshow(grid_img.permute(1, 2, 0))
-                plt.show()
 
             if self._model_path:
                 torch.save(self._generator.state_dict(), os.path.join(self._model_path, f'generator_{epoch}.pth'))
