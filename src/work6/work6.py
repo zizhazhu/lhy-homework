@@ -15,7 +15,7 @@ def hyper_parameters():
     parameters = {
         'seed': 0,
         'batch_size': 64,
-        'num_epochs': 10,
+        'num_epochs': 20,
         'learning_rate': 0.0002,
         'l2': 0.01,
         'n_critic': 5,
@@ -35,6 +35,10 @@ def main():
 
     generator = util.model.DCNNGenerator(params['n_latent'], bn=False)
     discriminator = util.model.Discriminator(3, linear=True, bn=False)
+    if args.load:
+        generator.load_state_dict(torch.load(os.path.join(model_dir, 'generator.pth')))
+        discriminator.load_state_dict(torch.load(os.path.join(model_dir, 'discriminator.pth')))
+
     criterion = torch.nn.BCELoss()
     g_optimizer = torch.optim.Adam(generator.parameters(), lr=params['learning_rate'], betas=(0.5, 0.999))
     d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=params['learning_rate'], betas=(0.5, 0.999))

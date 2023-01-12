@@ -89,9 +89,8 @@ class GANTrainer:
             print(f'Discriminator Loss: {d_loss.data:.4f}, Generator Loss: {g_loss.data:.4f}')
 
             if self._model_path:
-                torch.save(self._generator.state_dict(), os.path.join(self._model_path, f'generator_{epoch}.pth'))
-                torch.save(self._discriminator.state_dict(), os.path.join(self._model_path,
-                                                                          f'discriminator_{epoch}.pth'))
+                torch.save(self._generator.state_dict(), os.path.join(self._model_path, 'generator.pth'))
+                torch.save(self._discriminator.state_dict(), os.path.join(self._model_path, 'discriminator.pth'))
 
 
 class VanillaGANTrainer(GANTrainer):
